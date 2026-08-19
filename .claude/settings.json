@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./mvnw -o test -Dtest=DocumentApiIntegrationTest)",
+      "Bash(curl -s -m 3 http://localhost:8080/v1/.well-known/ready)",
+      "Bash(break)"
+    ]
+  }
+}

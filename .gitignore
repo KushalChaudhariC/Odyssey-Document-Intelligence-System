@@ -1,0 +1,26 @@
+# --- Secrets / environment ---
+.env
+.env.*
+!.env.example
+
+.claude/
+
+# --- Runtime data (uploaded PDFs, catalog, vector DB volume) ---
+docusense_backend/data/
+weaviate_data/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Editors ---
+.vscode/
+.idea/
+*.swp
+
+# --- Logs ---
+*.log
+npm-debug.log*
+
+# Note: docusense_backend/ and docusense_frontend/ each have their own
+# .gitignore for build output (target/, node_modules/, dist/, etc).
