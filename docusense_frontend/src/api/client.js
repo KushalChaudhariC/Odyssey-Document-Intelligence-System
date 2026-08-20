@@ -36,6 +36,10 @@ export async function listDocuments() {
   return data;
 }
 
+export async function resetAllDocuments() {
+  await client.delete("/api/documents");
+}
+
 export async function submitQuery(question) {
   const { data } = await client.post("/api/query", { question });
   return data;

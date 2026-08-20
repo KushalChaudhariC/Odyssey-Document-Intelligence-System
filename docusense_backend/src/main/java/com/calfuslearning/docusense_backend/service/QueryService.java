@@ -3,14 +3,10 @@ package com.calfuslearning.docusense_backend.service;
 import com.calfuslearning.docusense_backend.dto.Citation;
 import com.calfuslearning.docusense_backend.dto.QueryResponse;
 import com.calfuslearning.docusense_backend.exception.UpstreamServiceException;
+import com.calfuslearning.docusense_backend.service.ai.DocumentQaAssistant;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
@@ -34,21 +30,11 @@ public class QueryService {
     private static final int TOP_K = 5;
     private static final double HIGH_CONFIDENCE = 0.75;
     private static final double MEDIUM_CONFIDENCE = 0.55;
-
-    private static final String SYSTEM_PROMPT_TEMPLATE = """
-            You are DocuSense, an internal document assistant. Answer the user's question
-            using ONLY the information in the provided document excerpts below. Do not use
-            any outside knowledge. If the excerpts do not contain enough information to
-            answer the question, say so clearly instead of guessing.
-
-            For every factual claim you make, note which excerpt it came from.
-
-            Document excerpts:
-            %s
-            """;
+    /** Chunks scoring below this are considered irrelevant noise and dropped before generation/citation. */
+    private static final double MIN_RELEVANCE_SCORE = MEDIUM_CONFIDENCE;
 
     private final EmbeddingModel embeddingModel;
-    private final ChatModel chatModel;
+    private final DocumentQaAssistant documentQaAssistant;
     private final EmbeddingStore<TextSegment> documentsStore;
     private final EmbeddingStore<TextSegment> queryCacheStore;
     private final DocumentCatalogService catalogService;
@@ -57,14 +43,14 @@ public class QueryService {
 
     public QueryService(
             EmbeddingModel embeddingModel,
-            ChatModel chatModel,
+            DocumentQaAssistant documentQaAssistant,
             @Qualifier("documentsStore") EmbeddingStore<TextSegment> documentsStore,
             @Qualifier("queryCacheStore") EmbeddingStore<TextSegment> queryCacheStore,
             DocumentCatalogService catalogService,
             ObjectMapper objectMapper,
             @Value("${docusense.cache.similarity-threshold}") double cacheSimilarityThreshold) {
         this.embeddingModel = embeddingModel;
-        this.chatModel = chatModel;
+        this.documentQaAssistant = documentQaAssistant;
         this.documentsStore = documentsStore;
         this.queryCacheStore = queryCacheStore;
         this.catalogService = catalogService;
@@ -73,8 +59,10 @@ public class QueryService {
     }
 
     public QueryResponse answer(String question) {
+        log.info("Answering question ({} chars)", question.length());
         Embedding questionEmbedding = embed(question);
         int corpusVersion = catalogService.corpusVersion();
+        log.debug("Current corpus version: {}", corpusVersion);
 
         QueryResponse cached = checkCache(questionEmbedding, corpusVersion);
         if (cached != null) {
@@ -88,7 +76,9 @@ public class QueryService {
 
     private Embedding embed(String text) {
         try {
-            return embeddingModel.embed(text).content();
+            Embedding embedding = embeddingModel.embed(text).content();
+            log.debug("Embedded text into vector of dimension {}", embedding.vector().length);
+            return embedding;
         } catch (Exception e) {
             log.error("Failed to embed question", e);
             throw new UpstreamServiceException("Could not process the question text.", e);
@@ -110,13 +100,15 @@ public class QueryService {
             return null;
         }
         if (matches.isEmpty()) {
+            log.debug("No semantic cache entry above similarity threshold {}", cacheSimilarityThreshold);
             return null;
         }
 
         Metadata metadata = matches.get(0).embedded().metadata();
         Integer cachedCorpusVersion = metadata.getInteger("corpusVersion");
         if (cachedCorpusVersion == null || cachedCorpusVersion != corpusVersion) {
-            log.info("Cache hit found but source documents changed since caching; ignoring stale entry");
+            log.info("Cache hit found but source documents changed since caching (cached v{}, current v{}); ignoring stale entry",
+                    cachedCorpusVersion, corpusVersion);
             return null;
         }
 
@@ -139,7 +131,7 @@ public class QueryService {
         List<EmbeddingMatch<TextSegment>> matches = retrieveTopChunks(questionEmbedding);
 
         if (matches.isEmpty()) {
-            log.info("No relevant chunks found in document library for this question");
+            log.info("No chunks scored above the relevance floor ({}); treating as no answer available", MIN_RELEVANCE_SCORE);
             return new QueryResponse(
                     "I couldn't find any relevant information in the ingested documents to answer this question.",
                     List.of(), 0.0, "Low", false);
@@ -149,6 +141,7 @@ public class QueryService {
         List<Citation> citations = buildCitations(matches);
         double topScore = matches.get(0).score();
         String confidenceLabel = confidenceLabel(topScore);
+        log.info("Generated answer with top relevance score {} ({} confidence)", topScore, confidenceLabel);
 
         QueryResponse response = new QueryResponse(answer, citations, topScore, confidenceLabel, false);
         storeInCache(question, questionEmbedding, response, corpusVersion);
@@ -159,11 +152,11 @@ public class QueryService {
         EmbeddingSearchRequest request = EmbeddingSearchRequest.builder()
                 .queryEmbedding(questionEmbedding)
                 .maxResults(TOP_K)
-                .minScore(0.0)
+                .minScore(MIN_RELEVANCE_SCORE)
                 .build();
         try {
             EmbeddingSearchResult<TextSegment> result = documentsStore.search(request);
-            log.info("Retrieved {} chunk(s) for question", result.matches().size());
+            log.info("Retrieved {} chunk(s) scoring >= {} for question", result.matches().size(), MIN_RELEVANCE_SCORE);
             return result.matches();
         } catch (Exception e) {
             log.error("Retrieval from vector database failed", e);
@@ -180,13 +173,11 @@ public class QueryService {
                     .append(match.embedded().text()).append("\n\n");
         }
 
-        List<ChatMessage> messages = List.of(
-                SystemMessage.from(SYSTEM_PROMPT_TEMPLATE.formatted(excerpts.toString())),
-                UserMessage.from(question));
-
+        log.debug("Calling chat model with {} excerpt(s)", matches.size());
         try {
-            ChatResponse response = chatModel.chat(messages);
-            return response.aiMessage().text();
+            String answer = documentQaAssistant.answer(question, excerpts.toString());
+            log.debug("Chat model returned an answer of {} chars", answer.length());
+            return answer;
         } catch (Exception e) {
             log.error("Call to OpenAI chat model failed", e);
             throw new UpstreamServiceException(
@@ -229,6 +220,7 @@ public class QueryService {
                     .put("corpusVersion", corpusVersion)
                     .put("cachedAt", Instant.now().toString());
             queryCacheStore.add(questionEmbedding, TextSegment.from(question, metadata));
+            log.debug("Stored answer in semantic cache for corpus v{}", corpusVersion);
         } catch (Exception e) {
             log.warn("Failed to store answer in semantic cache (non-fatal)", e);
         }

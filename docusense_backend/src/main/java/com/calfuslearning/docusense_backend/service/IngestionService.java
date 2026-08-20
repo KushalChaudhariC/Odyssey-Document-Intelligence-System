@@ -38,16 +38,19 @@ public class IngestionService {
     private final DocumentCatalogService catalogService;
     private final EmbeddingModel embeddingModel;
     private final EmbeddingStore<TextSegment> documentsStore;
+    private final EmbeddingStore<TextSegment> queryCacheStore;
 
     public IngestionService(
             PdfStorageService pdfStorageService,
             DocumentCatalogService catalogService,
             EmbeddingModel embeddingModel,
-            @Qualifier("documentsStore") EmbeddingStore<TextSegment> documentsStore) {
+            @Qualifier("documentsStore") EmbeddingStore<TextSegment> documentsStore,
+            @Qualifier("queryCacheStore") EmbeddingStore<TextSegment> queryCacheStore) {
         this.pdfStorageService = pdfStorageService;
         this.catalogService = catalogService;
         this.embeddingModel = embeddingModel;
         this.documentsStore = documentsStore;
+        this.queryCacheStore = queryCacheStore;
     }
 
     public UploadResponse ingest(MultipartFile file) {
@@ -127,5 +130,34 @@ public class IngestionService {
             log.error("Failed to embed/store {} chunk(s)", chunks.size(), e);
             throw new UpstreamServiceException("Could not store the document in the vector database.", e);
         }
+    }
+
+    /**
+     * Full reset: wipes both Weaviate classes (documents + semantic cache), every stored PDF, and
+     * the catalog. Meant for testing/debugging so the corpus and vector store can never drift out
+     * of sync with each other.
+     */
+    public void resetAll() {
+        log.warn("Resetting entire corpus: clearing vector stores, catalog, and stored files");
+
+        try {
+            documentsStore.removeAll();
+            log.info("Cleared all embeddings from the documents vector store");
+        } catch (Exception e) {
+            log.error("Failed to clear documents vector store", e);
+            throw new UpstreamServiceException("Could not clear the document vector store.", e);
+        }
+
+        try {
+            queryCacheStore.removeAll();
+            log.info("Cleared all entries from the semantic query cache");
+        } catch (Exception e) {
+            log.error("Failed to clear semantic query cache", e);
+            throw new UpstreamServiceException("Could not clear the semantic query cache.", e);
+        }
+
+        pdfStorageService.deleteAll();
+        catalogService.clearAll();
+        log.info("Reset complete: corpus is now empty");
     }
 }

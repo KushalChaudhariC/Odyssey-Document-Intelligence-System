@@ -81,4 +81,18 @@ public class DocumentCatalogService {
     public int corpusVersion() {
         return catalog.values().stream().mapToInt(DocumentSummary::chunkCount).sum();
     }
+
+    /** Wipes the in-memory catalog and every sidecar JSON file on disk. Used by the full reset endpoint. */
+    public void clearAll() {
+        int count = catalog.size();
+        for (String sourceFileId : catalog.keySet()) {
+            try {
+                Files.deleteIfExists(uploadDir.resolve(sourceFileId + ".json"));
+            } catch (IOException e) {
+                log.warn("Could not delete catalog sidecar file for {}", sourceFileId, e);
+            }
+        }
+        catalog.clear();
+        log.info("Cleared document catalog ({} entr{})", count, count == 1 ? "y" : "ies");
+    }
 }

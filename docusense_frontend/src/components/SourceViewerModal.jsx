@@ -1,3 +1,5 @@
+import { documentViewUrl } from "../api/client";
+
 export default function SourceViewerModal({ citation, onClose }) {
   if (!citation) return null;
 
@@ -13,7 +15,7 @@ export default function SourceViewerModal({ citation, onClose }) {
         </div>
         <iframe
           title={`${citation.sourceFileName} page ${citation.pageNumber}`}
-          src={citation.viewUrl}
+          src={documentViewUrl(citation.sourceFileId, citation.pageNumber)}
           className="source-modal-frame"
         />
       </div>

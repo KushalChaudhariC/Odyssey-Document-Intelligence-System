@@ -64,6 +64,20 @@ public class PdfStorageService {
         }
     }
 
+    /** Deletes every stored PDF on disk. Used by the full reset endpoint. */
+    public void deleteAll() {
+        try (var stream = Files.newDirectoryStream(uploadDir, "*.pdf")) {
+            int count = 0;
+            for (Path pdf : stream) {
+                Files.deleteIfExists(pdf);
+                count++;
+            }
+            log.info("Deleted {} stored PDF(s) from {}", count, uploadDir);
+        } catch (IOException e) {
+            log.warn("Failed to delete stored PDFs from {}", uploadDir, e);
+        }
+    }
+
     private Path pdfPath(String sourceFileId) {
         return uploadDir.resolve(sourceFileId + ".pdf");
     }

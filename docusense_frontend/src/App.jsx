@@ -38,6 +38,12 @@ function App() {
     setDocuments((prev) => [summary, ...prev]);
   }
 
+  function handleReset() {
+    setDocuments([]);
+    setMessages([]);
+    setDocumentsError(null);
+  }
+
   async function handleAsk(question) {
     setMessages((prev) => [...prev, { id: nextMessageId++, role: "user", text: question }]);
     setIsThinking(true);
@@ -53,7 +59,12 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar documents={documents} onDocumentIngested={handleDocumentIngested} refreshError={documentsError} />
+      <Sidebar
+        documents={documents}
+        onDocumentIngested={handleDocumentIngested}
+        onReset={handleReset}
+        refreshError={documentsError}
+      />
 
       <main className="chat-panel">
         <ChatThread messages={messages} isThinking={isThinking} onViewSource={setActiveCitation} bottomRef={bottomRef} />

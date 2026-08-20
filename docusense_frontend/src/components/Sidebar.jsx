@@ -1,10 +1,12 @@
 import { useRef, useState } from "react";
-import { uploadDocument } from "../api/client";
+import { resetAllDocuments, uploadDocument } from "../api/client";
 
-export default function Sidebar({ documents, onDocumentIngested, refreshError }) {
+export default function Sidebar({ documents, onDocumentIngested, onReset, refreshError }) {
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState(null);
 
   async function handleFileSelected(event) {
     const file = event.target.files?.[0];
@@ -20,6 +22,24 @@ export default function Sidebar({ documents, onDocumentIngested, refreshError })
       setUploadError(err.message);
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  async function handleClearAll() {
+    const confirmed = window.confirm(
+      "This permanently deletes every uploaded PDF, all vector store chunks, and the semantic cache. Continue?"
+    );
+    if (!confirmed) return;
+
+    setIsResetting(true);
+    setResetError(null);
+    try {
+      await resetAllDocuments();
+      onReset();
+    } catch (err) {
+      setResetError(err.message);
+    } finally {
+      setIsResetting(false);
     }
   }
 
@@ -74,6 +94,24 @@ export default function Sidebar({ documents, onDocumentIngested, refreshError })
           ))
         )}
       </div>
+
+      <button
+        type="button"
+        className="btn btn-outline-danger w-100 reset-btn"
+        onClick={handleClearAll}
+        disabled={isResetting || documents.length === 0}
+        title="Delete all uploaded PDFs, vector store chunks, and the semantic cache"
+      >
+        {isResetting ? (
+          <>
+            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            Clearing…
+          </>
+        ) : (
+          <>🗑 Clear all data</>
+        )}
+      </button>
+      {resetError && <div className="sidebar-error">{resetError}</div>}
     </aside>
   );
 }
