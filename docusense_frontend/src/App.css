@@ -191,6 +191,19 @@
   border-top: 1px solid #edeff3;
 }
 
+.dig-deeper-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #edeff3;
+}
+
+.deep-dive-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 0 2px;
+}
+
 .sources-heading {
   font-size: 12px;
   font-weight: 600;
@@ -282,10 +295,37 @@
   border-bottom: 1px solid #e6e8ee;
 }
 
-.source-modal-frame {
+.source-modal-body {
   flex-grow: 1;
-  border: none;
+  overflow: auto;
+  background: #525659;
+  padding: 16px;
+}
+
+.pdf-page-viewer {
+  position: relative;
   width: 100%;
+  line-height: 0;
+}
+
+.pdf-page-viewer canvas {
+  width: 100%;
+  display: block;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.pdf-highlight-box {
+  position: absolute;
+  background: rgba(255, 214, 0, 0.4);
+  border: 1.5px solid rgba(255, 179, 0, 0.9);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.pdf-page-error {
+  color: #fff;
+  padding: 12px;
+  text-align: center;
 }
 
 @media (max-width: 900px) {

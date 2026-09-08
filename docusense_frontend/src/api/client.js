@@ -45,8 +45,13 @@ export async function submitQuery(question) {
   return data;
 }
 
-export function documentViewUrl(sourceFileId, pageNumber) {
-  return `${BASE_URL}/api/documents/${sourceFileId}#page=${pageNumber}`;
+export async function submitDeepDiveQuery(question) {
+  const { data } = await client.post("/api/query/deep-dive", { question });
+  return data;
+}
+
+export function documentFileUrl(sourceFileId) {
+  return `${BASE_URL}/api/documents/${sourceFileId}`;
 }
 
 export default client;

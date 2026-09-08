@@ -1,4 +1,5 @@
-import { documentViewUrl } from "../api/client";
+import { documentFileUrl } from "../api/client";
+import PdfPageViewer from "./PdfPageViewer";
 
 export default function SourceViewerModal({ citation, onClose }) {
   if (!citation) return null;
@@ -13,11 +14,13 @@ export default function SourceViewerModal({ citation, onClose }) {
           </div>
           <button type="button" className="btn-close" aria-label="Close" onClick={onClose}></button>
         </div>
-        <iframe
-          title={`${citation.sourceFileName} page ${citation.pageNumber}`}
-          src={documentViewUrl(citation.sourceFileId, citation.pageNumber)}
-          className="source-modal-frame"
-        />
+        <div className="source-modal-body">
+          <PdfPageViewer
+            fileUrl={documentFileUrl(citation.sourceFileId)}
+            pageNumber={citation.pageNumber}
+            highlight={citation.highlight}
+          />
+        </div>
       </div>
     </div>
   );

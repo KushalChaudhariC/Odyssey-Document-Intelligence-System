@@ -19,7 +19,8 @@ import java.util.List;
 import java.util.UUID;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.text.TextPosition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -74,10 +75,26 @@ public class IngestionService {
         }
 
         embedAndStore(chunks);
+        invalidateQueryCache();
 
         catalogService.register(sourceFileId, originalName, chunks.size());
         log.info("Ingestion complete for '{}': {} chunk(s) stored", originalName, chunks.size());
         return new UploadResponse(sourceFileId, originalName, chunks.size());
+    }
+
+    /**
+     * Wipes the entire semantic query cache after every successful ingestion. A newly uploaded or
+     * revised document can make previously cached answers outdated, and figuring out which cached
+     * entries are actually affected is unreliable - a full wipe on every upload is simpler and
+     * safer than a selective invalidation that might miss something.
+     */
+    private void invalidateQueryCache() {
+        try {
+            queryCacheStore.removeAll();
+            log.info("Cleared semantic query cache after ingestion");
+        } catch (Exception e) {
+            log.warn("Failed to clear semantic query cache after ingestion (non-fatal)", e);
+        }
     }
 
     private List<TextSegment> extractAndSplit(String sourceFileId, String originalName) {
@@ -86,20 +103,26 @@ public class IngestionService {
         Instant ingestedAt = Instant.now();
 
         try (PDDocument pdf = Loader.loadPDF(pdfStorageService.loadAsResource(sourceFileId).getFile())) {
-            PDFTextStripper stripper = new PDFTextStripper();
             int pageCount = pdf.getNumberOfPages();
 
             for (int pageIndex = 1; pageIndex <= pageCount; pageIndex++) {
+                PositionTrackingTextStripper stripper = new PositionTrackingTextStripper();
                 stripper.setStartPage(pageIndex);
                 stripper.setEndPage(pageIndex);
-                String pageText = stripper.getText(pdf);
+                stripper.getText(pdf);
+                String pageText = stripper.text();
                 if (pageText == null || pageText.isBlank()) {
                     continue;
                 }
 
+                PDPage page = pdf.getPage(pageIndex - 1);
+                float pageWidth = page.getMediaBox().getWidth();
+                float pageHeight = page.getMediaBox().getHeight();
+
                 Document pageDocument = Document.from(pageText);
                 List<TextSegment> pageChunks = splitter.split(pageDocument);
 
+                int searchFrom = 0;
                 for (int chunkIndex = 0; chunkIndex < pageChunks.size(); chunkIndex++) {
                     TextSegment chunk = pageChunks.get(chunkIndex);
                     Metadata metadata = new Metadata()
@@ -108,6 +131,14 @@ public class IngestionService {
                             .put("pageNumber", pageIndex)
                             .put("chunkIndex", chunkIndex)
                             .put("ingestedAt", ingestedAt.toString());
+
+                    int matchStart = pageText.indexOf(chunk.text(), Math.max(0, searchFrom - CHUNK_OVERLAP));
+                    if (matchStart >= 0) {
+                        searchFrom = matchStart + chunk.text().length();
+                        addHighlightBox(metadata, stripper.positions(), matchStart, matchStart + chunk.text().length(),
+                                pageWidth, pageHeight);
+                    }
+
                     allChunks.add(TextSegment.from(chunk.text(), metadata));
                 }
             }
@@ -117,6 +148,44 @@ public class IngestionService {
         }
 
         return allChunks;
+    }
+
+    /**
+     * Computes the union bounding box of every character in [startIndex, endIndex) and stores it
+     * in the chunk's metadata as page-relative fractions (0-1), so the frontend can draw a
+     * highlight rectangle without needing to know the page's actual point dimensions. Silently
+     * does nothing if no positions are available in that range (e.g. the chunk text couldn't be
+     * located in the page, or fell entirely on separator placeholders).
+     */
+    private void addHighlightBox(
+            Metadata metadata, List<TextPosition> positions, int startIndex, int endIndex, float pageWidth, float pageHeight) {
+        float left = Float.MAX_VALUE;
+        float top = Float.MAX_VALUE;
+        float right = -Float.MAX_VALUE;
+        float bottom = -Float.MAX_VALUE;
+        boolean found = false;
+
+        int safeEnd = Math.min(endIndex, positions.size());
+        for (int i = Math.max(0, startIndex); i < safeEnd; i++) {
+            TextPosition tp = positions.get(i);
+            if (tp == null) {
+                continue;
+            }
+            found = true;
+            left = Math.min(left, tp.getXDirAdj());
+            top = Math.min(top, tp.getYDirAdj() - tp.getHeightDir());
+            right = Math.max(right, tp.getXDirAdj() + tp.getWidthDirAdj());
+            bottom = Math.max(bottom, tp.getYDirAdj());
+        }
+
+        if (!found || pageWidth <= 0 || pageHeight <= 0) {
+            return;
+        }
+
+        metadata.put("highlightX", left / pageWidth)
+                .put("highlightY", top / pageHeight)
+                .put("highlightWidth", (right - left) / pageWidth)
+                .put("highlightHeight", (bottom - top) / pageHeight);
     }
 
     private void embedAndStore(List<TextSegment> chunks) {

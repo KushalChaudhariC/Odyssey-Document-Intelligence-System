@@ -19,4 +19,12 @@ public interface DocumentQaAssistant {
             {{excerpts}}
             """)
     String answer(@UserMessage String question, @V("excerpts") String excerpts);
+
+    @UserMessage("""
+            Rephrase the following question using different wording, while keeping the same
+            meaning. Respond with only the rephrased question, nothing else.
+
+            Question: {{question}}
+            """)
+    String rephrase(@V("question") String question);
 }

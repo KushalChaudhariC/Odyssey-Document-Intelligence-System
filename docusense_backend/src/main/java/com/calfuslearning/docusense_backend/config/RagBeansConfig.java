@@ -1,6 +1,16 @@
 package com.calfuslearning.docusense_backend.config;
 
+import java.time.Duration;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
 import com.calfuslearning.docusense_backend.service.ai.DocumentQaAssistant;
+
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -9,19 +19,8 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.weaviate.WeaviateEmbeddingStore;
-import java.time.Duration;
-import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-/**
- * Wires the RAG building blocks: the local embedding model, the OpenAI chat model, and two
- * separate Weaviate object classes - one for the real document chunks, one for the semantic
- * answer cache.
- */
+
 @Configuration
 public class RagBeansConfig {
 
@@ -83,7 +82,9 @@ public class RagBeansConfig {
                 .objectClass(DOCUMENTS_CLASS)
                 .avoidDups(true)
                 .textFieldName("chunkText")
-                .metadataKeys(List.of("sourceFileName", "sourceFileId", "pageNumber", "chunkIndex", "ingestedAt"))
+                .metadataKeys(List.of(
+                        "sourceFileName", "sourceFileId", "pageNumber", "chunkIndex", "ingestedAt",
+                        "highlightX", "highlightY", "highlightWidth", "highlightHeight"))
                 .build();
     }
 

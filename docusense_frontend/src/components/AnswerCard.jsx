@@ -1,7 +1,26 @@
+import { useState } from "react";
 import ConfidenceBadge from "./ConfidenceBadge";
+import { submitDeepDiveQuery } from "../api/client";
 
-export default function AnswerCard({ response, onViewSource }) {
+export default function AnswerCard({ response, question, onViewSource, onDeepDiveResult }) {
   const { answer, citations, confidence, confidenceLabel, servedFromCache } = response;
+  const [isDigging, setIsDigging] = useState(false);
+  const [digError, setDigError] = useState(null);
+
+  const showDigDeeper = confidenceLabel === "Medium" || confidenceLabel === "Low";
+
+  async function handleDigDeeper() {
+    setIsDigging(true);
+    setDigError(null);
+    try {
+      const deepDiveResponse = await submitDeepDiveQuery(question);
+      onDeepDiveResult(question, confidence, deepDiveResponse);
+    } catch (err) {
+      setDigError(err.message);
+    } finally {
+      setIsDigging(false);
+    }
+  }
 
   return (
     <div className="answer-card">
@@ -35,6 +54,27 @@ export default function AnswerCard({ response, onViewSource }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {showDigDeeper && (
+        <div className="dig-deeper-section">
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={handleDigDeeper}
+            disabled={isDigging}
+          >
+            {isDigging ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Digging deeper…
+              </>
+            ) : (
+              <>🔍 Dig Deeper</>
+            )}
+          </button>
+          {digError && <div className="sidebar-error mt-1">{digError}</div>}
         </div>
       )}
     </div>

@@ -1,7 +1,5 @@
 package com.calfuslearning.docusense_backend.service;
 
-import com.calfuslearning.docusense_backend.dto.DocumentSummary;
-import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -11,19 +9,19 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import com.calfuslearning.docusense_backend.dto.DocumentSummary;
+
+import jakarta.annotation.PostConstruct;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * Tracks which documents have been ingested. Kept intentionally simple - no database - each
- * document's summary is persisted as a small sidecar JSON file next to its PDF, and mirrored
- * in memory for fast reads. This also backs the semantic cache's coarse invalidation signal
- * (see corpusVersion()).
- */
+
 @Service
 public class DocumentCatalogService {
 

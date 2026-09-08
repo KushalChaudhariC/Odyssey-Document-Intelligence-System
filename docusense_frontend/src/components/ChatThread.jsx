@@ -1,6 +1,6 @@
 import AnswerCard from "./AnswerCard";
 
-export default function ChatThread({ messages, isThinking, onViewSource, bottomRef }) {
+export default function ChatThread({ messages, isThinking, onViewSource, onDeepDiveResult, bottomRef }) {
   if (messages.length === 0 && !isThinking) {
     return (
       <div className="chat-empty-state">
@@ -22,11 +22,23 @@ export default function ChatThread({ messages, isThinking, onViewSource, bottomR
             <div className="user-bubble">{message.text}</div>
           </div>
         ) : (
-          <div className="d-flex justify-content-start" key={message.id}>
+          <div className="d-flex flex-column align-items-start gap-1" key={message.id}>
+            {message.isDeepDive && (
+              <div className="deep-dive-label">
+                {message.deepDiveImproved
+                  ? "🔍 Here's what I found after a deeper search:"
+                  : "🔍 A deeper search didn't find more specific information than the first answer."}
+              </div>
+            )}
             {message.error ? (
               <div className="error-card">{message.error}</div>
             ) : (
-              <AnswerCard response={message.response} onViewSource={onViewSource} />
+              <AnswerCard
+                response={message.response}
+                question={message.question}
+                onViewSource={onViewSource}
+                onDeepDiveResult={onDeepDiveResult}
+              />
             )}
           </div>
         )

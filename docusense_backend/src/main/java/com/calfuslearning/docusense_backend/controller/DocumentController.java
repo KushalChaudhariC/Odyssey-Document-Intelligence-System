@@ -1,19 +1,14 @@
 package com.calfuslearning.docusense_backend.controller;
 
-import com.calfuslearning.docusense_backend.dto.DocumentSummary;
-import com.calfuslearning.docusense_backend.dto.UploadResponse;
-import com.calfuslearning.docusense_backend.exception.DocumentNotFoundException;
-import com.calfuslearning.docusense_backend.service.DocumentCatalogService;
-import com.calfuslearning.docusense_backend.service.IngestionService;
-import com.calfuslearning.docusense_backend.service.PdfStorageService;
 import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +18,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.calfuslearning.docusense_backend.dto.DocumentSummary;
+import com.calfuslearning.docusense_backend.dto.UploadResponse;
+import com.calfuslearning.docusense_backend.exception.DocumentNotFoundException;
+import com.calfuslearning.docusense_backend.service.DocumentCatalogService;
+import com.calfuslearning.docusense_backend.service.IngestionService;
+import com.calfuslearning.docusense_backend.service.PdfStorageService;
 
 @RestController
 @RequestMapping("/api/documents")

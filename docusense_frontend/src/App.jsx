@@ -49,12 +49,26 @@ function App() {
     setIsThinking(true);
     try {
       const response = await submitQuery(question);
-      setMessages((prev) => [...prev, { id: nextMessageId++, role: "assistant", response }]);
+      setMessages((prev) => [...prev, { id: nextMessageId++, role: "assistant", response, question }]);
     } catch (err) {
       setMessages((prev) => [...prev, { id: nextMessageId++, role: "assistant", error: err.message }]);
     } finally {
       setIsThinking(false);
     }
+  }
+
+  function handleDeepDiveResult(question, originalConfidence, deepDiveResponse) {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextMessageId++,
+        role: "assistant",
+        response: deepDiveResponse,
+        question,
+        isDeepDive: true,
+        deepDiveImproved: deepDiveResponse.confidence > originalConfidence,
+      },
+    ]);
   }
 
   return (
@@ -67,7 +81,13 @@ function App() {
       />
 
       <main className="chat-panel">
-        <ChatThread messages={messages} isThinking={isThinking} onViewSource={setActiveCitation} bottomRef={bottomRef} />
+        <ChatThread
+          messages={messages}
+          isThinking={isThinking}
+          onViewSource={setActiveCitation}
+          onDeepDiveResult={handleDeepDiveResult}
+          bottomRef={bottomRef}
+        />
         <QuestionComposer onSubmit={handleAsk} disabled={isThinking} />
       </main>
 

@@ -29,4 +29,10 @@ public class QueryController {
         log.info("Received question ({} chars)", request.question().length());
         return ResponseEntity.ok(queryService.answer(request.question()));
     }
+
+    @PostMapping("/deep-dive")
+    public ResponseEntity<QueryResponse> deepDive(@Valid @RequestBody QueryRequest request) {
+        log.info("Received deep-dive request ({} chars)", request.question().length());
+        return ResponseEntity.ok(queryService.deepDive(request.question()));
+    }
 }
